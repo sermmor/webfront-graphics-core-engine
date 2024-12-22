@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "es5",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "declaration": true,
+    "outDir": "./dist",
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true
+  },
+  "include": ["./src/**/*.ts"],
+  "exclude": ["node_modules", "./src/main.ts", "./src/debug.ts"]
+}
