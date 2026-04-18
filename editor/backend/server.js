@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs-extra');
 const { glob } = require('glob');
 const mime = require('mime-types');
-const { spawn } = require('child_process');
+const { spawn, exec } = require('child_process');
 
 const app = express();
 const PORT = 3001;
@@ -17,6 +17,28 @@ let playProcess = null;
 
 // ── Health ─────────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
+
+// ── Native folder picker ────────────────────────────────────────────────────
+app.get('/api/folder-picker', (_req, res) => {
+  const ps = `
+Add-Type -AssemblyName System.Windows.Forms
+$d = New-Object System.Windows.Forms.FolderBrowserDialog
+$d.Description = 'Select project folder'
+$d.ShowNewFolderButton = $false
+$d.RootFolder = 'MyComputer'
+if ($d.ShowDialog() -eq 'OK') { Write-Output $d.SelectedPath }
+`.trim();
+
+  exec(`powershell -NoProfile -Command "${ps.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`,
+    { timeout: 60000 },
+    (err, stdout, stderr) => {
+      if (err) return res.status(500).json({ error: stderr || err.message });
+      const selected = stdout.trim();
+      if (!selected) return res.json({ cancelled: true });
+      res.json({ path: selected });
+    }
+  );
+});
 
 // ── Project ────────────────────────────────────────────────────────────────
 app.get('/api/project', async (req, res) => {
