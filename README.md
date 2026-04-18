@@ -8,7 +8,7 @@ title: Development Handbook
 A graphic engine in Typescript for front-end applications. The key idea is control divs with canvas that contains graphics applications (canvas) in an easy way. So this graphic engine use PixiJS, Pixi Particles and MatterJS, but for the user of this graphic engine don't need to know to use PixiJS, Pixi Particles nor MatterJS.
 
 ## 2. Motivation
-PixiJS is usefull for efficient web graphics applications where you have a low machine resources, but when that applications are a little complex (like a roulette o a Keno) the code can be hard to understand. Other engines like Unity or Cocos Creator are easy to use with complex applications but its have a high cost in performance. So a engine above PixiJS with some ideas of current engines (component-based programing, an easy manages scenes, automatic autoscale, an efficient game loop,...) but adapted in what we need, it should be the optimum.
+PixiJS is usefull for efficient web graphics applications where you have a low machine resources, but when that applications are a little complex (like a roulette o a Once) the code can be hard to understand. Other engines like Unity or Cocos Creator are easy to use with complex applications but its have a high cost in performance. So a engine above PixiJS with some ideas of current engines (component-based programing, an easy manages scenes, automatic autoscale, an efficient game loop,...) but adapted in what we need, it should be the optimum.
 
 We divide this documentation in two sections: how to use the engine (section 3) and the engine documentation (section 4). To understand the following sections, you must have knowledge of Typescript and JSON. The section 3 requires basic knowledges of Typescript and JSON, but in the case of section 4 - the engine documentation - you should have advanced knowledges of Javascript like reflection, garbage collector or Javascript stack.
 
@@ -119,7 +119,7 @@ Sprite component defines an image in the screen. The anchor of the GameObject wi
 * color. It's a color in rgba or hexadecimal with alpha that represent a color matrix shader for the image. For instance, if color is red, the image will be filled with a red hue. If color is white but with an alpha less than 1, the color of the image won't be changed but it will be transparent. If color is equals to (255,255,255,1), the image color and the alpha won't be changed. You can combine alpha values with color, too.
 ```json
 "sprite": {
-    "nameImage": "Keno-TV-Ball-Content-Art-Deco.svg",
+    "nameImage": "Once-TV-Ball-Content-Art-Deco.svg",
     "color": "(255,255,255,1)"
 },
 ```
@@ -286,12 +286,12 @@ A collider component defines a global physical body of a GameObject. The GameObj
 
 For manage colliders we used MatterJS, that allow to use position in pixels and not in metters (although all the other physic engines based in Box2D). This simplify a lot the scene creation, because we don't have to reimagine the scene in pixels and its translating in metters every time. Moreover, MatterJS fixed a lot of bugs of Box2D for Javascript and it's thoroughly used by developers.
 
-Before explain the propierties, I alert you that you __must have a solid reason__ to use colliders (physics) in a game. Physics always takes a lot of resources and should be used in the best efficient way. Always you have to minimized the number of colliders enabled in the scene (specially minimize the number of dynamics and kinematic colliders in screen - dynamic or kinematic RigidBody type value -, when you don't use a dynamic or kinematic collider like dynamic, put it in static). So, take account that physics must be used as the ultimate final solution in a game. Only in case you haven't have a good solution and performance using some particles or some tween components or some behaviour components, you have to use colliders. For instance, due to its complex movement, the balls in Keno using tween or behaviour components requiers more performance than use physics, so for the keno balls and walls we use colliders (physic).
+Before explain the propierties, I alert you that you __must have a solid reason__ to use colliders (physics) in a game. Physics always takes a lot of resources and should be used in the best efficient way. Always you have to minimized the number of colliders enabled in the scene (specially minimize the number of dynamics and kinematic colliders in screen - dynamic or kinematic RigidBody type value -, when you don't use a dynamic or kinematic collider like dynamic, put it in static). So, take account that physics must be used as the ultimate final solution in a game. Only in case you haven't have a good solution and performance using some particles or some tween components or some behaviour components, you have to use colliders. For instance, due to its complex movement, the balls in Once using tween or behaviour components requiers more performance than use physics, so for the Once balls and walls we use colliders (physic).
 
 The commons propierties for collider components are:
 * labelCollider. Name of the collider, it's an optional field but very useful for manage collision with behaviours.
 * offset. Vector 2D {x, y} with the quantity to add to the transform for place collider (always pixels related to the width and the height defined in GameConfiguration, never real pixels). You have to take account that if the vector is equals to {x: 0, y: 0} the collider it will be placed at the center of the GameObject.
-* layerMask. Take account to this (a lot of beginners using game engines fails for not use this detail). You don't have to think in physics like real physics in which every object can collide with each object in a space. You have to think in physics like real physics but in diferents alternative dimensions (a layer or LayerMask) that can be interact each others or not. This concept is basic and is used in games to reduce the cost, in fact in Keno game use one layer for the balls that collider with a blocker horizontal and other layer for the balls that going above the blocker and collide with the wall (so we don't use a kinematic or static collider for the Keno blocker that would be consuming a lot because it would need a fixed joint, and a lot of details in strength and things like that to works - note in this that always we have to use physics minimizing all the physic cost, and LayerMask is very usefull for this). In code we always can change the mask of a collider using the method setColliderCategories(colliderCategory: string | undefined). We have 12 LayerMasks ("layer01", "layer02",... "layer12") that only collide with object in the same LayerMask, and one LayerMask that interact with all the layers ("default"). It's an optional parameter and its vaule by default is "default".
+* layerMask. Take account to this (a lot of beginners using game engines fails for not use this detail). You don't have to think in physics like real physics in which every object can collide with each object in a space. You have to think in physics like real physics but in diferents alternative dimensions (a layer or LayerMask) that can be interact each others or not. This concept is basic and is used in games to reduce the cost, in fact in Once game use one layer for the balls that collider with a blocker horizontal and other layer for the balls that going above the blocker and collide with the wall (so we don't use a kinematic or static collider for the Once blocker that would be consuming a lot because it would need a fixed joint, and a lot of details in strength and things like that to works - note in this that always we have to use physics minimizing all the physic cost, and LayerMask is very usefull for this). In code we always can change the mask of a collider using the method setColliderCategories(colliderCategory: string | undefined). We have 12 LayerMasks ("layer01", "layer02",... "layer12") that only collide with object in the same LayerMask, and one LayerMask that interact with all the layers ("default"). It's an optional parameter and its vaule by default is "default".
 
 __rectangleCollider__. Defined a collider component with the body of a rectangle.
 * size. Vector {width, height} with the width and height of the body.
@@ -499,7 +499,7 @@ The syntax of a reference value is `"NameOfGameObject:TypeOfComponent"`. The eng
                 "poolBall":         "BallPool:[PoolItem]",
                 "textBallPool":     "TextBallPool:[PoolItem]",
                 "textBallCounter":  "Counter-Ball-Indicator-Text:TextComponent",
-                "tableResult":      "Keno-TV-Frame-Background-Results:ShowResultTableBehaviour"
+                "tableResult":      "Once-TV-Frame-Background-Results:ShowResultTableBehaviour"
             }
         }
     }
@@ -516,7 +516,7 @@ Another example that mixes references with a plain configuration value:
                 "textBall":              "TextBall:TextComponent",
                 "physicsBlocker":        "blocker-physics:PhysicsBlockerBehaviour",
                 "currentBallIndicator":  "Big-Show-Ball:ChangeBallScaleBehaviour",
-                "floorCollider":         "Keno-TV-Frame-Content-Holes-Art-Deco:RectangleColliderComponent"
+                "floorCollider":         "Once-TV-Frame-Content-Holes-Art-Deco:RectangleColliderComponent"
             },
             "velocityX": 12
         }

@@ -82,7 +82,7 @@ export class SpriteComponent extends Component implements IComponentLifeComplete
             }
         });
 
-        return new Promise<Component>((resolve, reject) => this.waitUntilLoadFinished(() => resolve()));
+        return new Promise<Component>((resolve, reject) => this.waitUntilLoadFinished(() => resolve(this)));
         // await CoreLoader.waitWhileIsLoadingInUse();
         // if (this.isNotImageLoaded()) {
         //     this.isLoadedSpriteDataForFirstTime = true;
