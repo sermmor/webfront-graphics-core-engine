@@ -390,21 +390,576 @@ An interpolation function is an iterative method that has an aproximate behavior
 
 If you think to use a tween that emulate like a parabol curve, I recomend you to use Lagrange, you only need 3 points as minimum to create the parabol. If you think to use something more complex and with a lot of curves, use Akima Cubic Spline, you'll need 5 points as minimum to emulate a polynomial function.
 
+All tweens are defined in a `"tweenList"` array inside a GameObject. Each element in the list is an object with a single key that indicates the tween type: `"bezier"`, `"bezier-cubic"`, `"lagrange"`, or `"akima-cubic-spline"`. The common properties for all tween types are:
+* totalTime. Duration of the tween animation in seconds.
+* pointInitialState. Initial value `{x, y}` of the property being animated. For `"move"` and `"scale"` options the x and y are independent axes; for `"rotate"` and `"opacity"` only x is used.
+* pointEndingState. Final value `{x, y}` of the property being animated.
+* option. What property is being animated. Possible values: `"move"`, `"scale"`, `"rotate"`, `"opacity"`, `"callback"`. With `"callback"` the tween doesn't apply any transform — it just calls the `onTweenUpdate` callback with the interpolated value, so you can drive any custom effect from Behaviour code.
+* gameObjectNameToAct. Name of the GameObject whose property will be animated (it can be the same GameObject that contains the tween, or a different one).
+
+By default all tweens in the list execute in parallel. You can change this by adding a `"tween-configuration"` element to the list:
+```json
+{ "tween-configuration": { "execution-tween-mode": "sequence" } }
+```
+
+__bezier__ and __bezier-cubic__. Bezier tweens also require two control points `p1` and `p2` (the middle handles of the cubic bezier curve, as provided by [cubic-bezier.com](https://cubic-bezier.com/)):
+* p1. First bezier control point `{x, y}`.
+* p2. Second bezier control point `{x, y}`.
+```json
+"tweenList": [
+    {
+        "bezier": {
+            "totalTime": 0.3,
+            "pointInitialState": {
+                "x": 0.1,
+                "y": 0.1
+            },
+            "pointEndingState": {
+                "x": 1,
+                "y": 1
+            },
+            "option": "scale",
+            "gameObjectNameToAct": "Big-Show-Ball",
+            "p1": {
+                "x": 0.62,
+                "y": 1
+            },
+            "p2": {
+                "x": 1,
+                "y": 1.35
+            }
+        }
+    }
+],
+```
+
+__lagrange__. Requires at minimum 3 control points in a `"point-list"` array. Each point `{x, y}` represents a (time-percentage, value) pair that the interpolation curve passes through exactly.
+```json
+"tweenList": [
+    {
+        "lagrange": {
+            "totalTime": 0.5,
+            "pointInitialState": { "x": 0, "y": 0 },
+            "pointEndingState": { "x": 1, "y": 1 },
+            "option": "move",
+            "gameObjectNameToAct": "My-Object",
+            "point-list": [
+                { "x": 0,   "y": 0   },
+                { "x": 0.5, "y": 1.5 },
+                { "x": 1,   "y": 1   }
+            ]
+        }
+    }
+],
+```
+
+__akima-cubic-spline__. Same structure as `lagrange` but requires at minimum 5 control points. It produces smoother curves and is more accurate for complex animations:
+```json
+"tweenList": [
+    {
+        "akima-cubic-spline": {
+            "totalTime": 0.4,
+            "pointInitialState": { "x": 0.1, "y": 0.1 },
+            "pointEndingState": { "x": 1, "y": 1 },
+            "option": "opacity",
+            "gameObjectNameToAct": "Result-Box",
+            "point-list": [
+                { "x": 0,    "y": 0 },
+                { "x": 0.25, "y": 1 },
+                { "x": 0.375,"y": 0 },
+                { "x": 0.5,  "y": 1 },
+                { "x": 0.75, "y": 0 },
+                { "x": 1,    "y": 1 }
+            ]
+        }
+    }
+],
+```
 
 #### 3.1.1.2.9 Behaviours and references
-Take account that this component is the most hard to understand, but if you understand it, you'll know the basic of how to do games with any game engine. (by reflection and dependency injection)
+(Take account that this component is the most hard to understand, but if you understand it, you'll know the basic of how to do games with any game engine.)
+
+A Behaviour is a TypeScript class that you write. It's the equivalent of a Unity MonoBehaviour: a piece of logic that is attached to a specific GameObject, has access to that GameObject and its components, and participates in the game loop. Behaviours are the place where all the game logic lives.
+
+A GameObject can have one or more Behaviours, all declared in the `"behaviourComponentList"` array. Each element in the array is an object whose key is the __exact class name__ of the Behaviour (this name is used by the engine to instantiate the right class via reflection, so it must match exactly).
+
+Inside the Behaviour entry you can put two things:
+1. A `"references"` object that wires components or other GameObjects into properties of the Behaviour class (dependency injection).
+2. Any number of extra properties that will be injected as plain values into the Behaviour instance (like configuration constants).
+
+The syntax of a reference value is `"NameOfGameObject:TypeOfComponent"`. The engine will look up the named GameObject and then find the component of the indicated type on it. Special types are:
+* `"GameObject"` — injects the whole GameObject instead of a component.
+* `"[PoolItem]"` — injects the `PoolGameObject` pool (the name is the pool name defined in `gameConfiguration.pools`, without the word "Pool").
+
+```json
+"behaviourComponentList": [
+    {
+        "BallGeneratorBehaviour": {
+            "references": {
+                "poolBall":         "BallPool:[PoolItem]",
+                "textBallPool":     "TextBallPool:[PoolItem]",
+                "textBallCounter":  "Counter-Ball-Indicator-Text:TextComponent",
+                "tableResult":      "Keno-TV-Frame-Background-Results:ShowResultTableBehaviour"
+            }
+        }
+    }
+],
+```
+
+Another example that mixes references with a plain configuration value:
+```json
+"behaviourComponentList": [
+    {
+        "MoveBallHorizontal": {
+            "references": {
+                "collider":              "Ingame-Ball:CircleColliderComponent",
+                "textBall":              "TextBall:TextComponent",
+                "physicsBlocker":        "blocker-physics:PhysicsBlockerBehaviour",
+                "currentBallIndicator":  "Big-Show-Ball:ChangeBallScaleBehaviour",
+                "floorCollider":         "Keno-TV-Frame-Content-Holes-Art-Deco:RectangleColliderComponent"
+            },
+            "velocityX": 12
+        }
+    }
+],
+```
+
+The following component type names can be used in reference strings:
+* `TransformComponent`
+* `SpriteComponent`
+* `TextComponent`
+* `RectangleColliderComponent`, `CircleColliderComponent`
+* `BezierTweenComponent`, `BezierCubicTweenComponent`, `LagrangeTweenComponent`, `AkimaCubicSplineTweenComponent`
+* `ParticleComponentManager`
+* `SoundComponent`
+* `AnimationSpriteComponent`, `AnimationSpriteManagerComponent`
+* Any Behaviour class name (you can inject one Behaviour into another).
+
+#### 3.1.1.2.10 Sound
+The sound component ("soundComponent") attaches audio to a GameObject using the Howler library. The asset paths must be included in `imageAsssetPaths` (the engine searches by filename). There are two modes: individual sounds and a sprite sheet (multiple sounds packed in a single file).
+
+Common properties:
+* soundNames. List of audio file names to load.
+
+For sprite-sheet mode (multiple sounds in a single file), add:
+* sprite. Object mapping each sound name to a `[startMs, durationMs]` or `[startMs, durationMs, loop]` tuple, following the Howler sprite format.
+
+From code (inside a Behaviour) you can call:
+* `soundComponent.playSound(soundName, onSoundPlayed?)` — plays the named sound.
+* `soundComponent.stopSound(soundName)` — stops the named sound.
+
+```json
+"soundComponent": {
+    "soundNames": ["background-music.mp3", "ball-drop.mp3"]
+},
+```
+
+Sprite-sheet example:
+```json
+"soundComponent": {
+    "soundNames": ["sounds-sprite.mp3"],
+    "sprite": {
+        "win":  [0,    2000],
+        "lose": [2000, 1500],
+        "tick": [3500, 300, true]
+    }
+},
+```
+
+#### 3.1.1.2.11 Animation Sprites
+The animation sprites component ("spriteAnimation") plays a frame-by-frame sprite-sheet animation. Each element of the array is an independent animation clip. Assets are resolved from `imageAsssetPaths` by filename.
+
+Properties of each animation clip:
+* nameAnimation. Prefix used to locate the animation frames in the loaded sprite-sheet data.
+* nameImageFileList. Array of sprite-sheet JSON file names (the atlases exported by a tool like Spine or DragonBones). Each file bundles a set of frames.
+* animationSpeed. Playback speed multiplier (1 = normal speed, 0.5 = half speed, etc.).
+* color. Color matrix shader applied to the animation (same format as the Sprite component).
+
+```json
+"spriteAnimation": [
+    {
+        "nameAnimation": "Ring_000",
+        "nameImageFileList": ["Ring.json"],
+        "animationSpeed": 0.11,
+        "color": "(255,255,255,1)"
+    }
+],
+```
 
 #### 3.1.1.3 Pools
-#### 3.1.2 Particle files
-#### 3.1.3 Template files
-The templates aren't defined in the scene file, they are added generating in the scene using an object called GameObjectTemplate that we explain in the following sections about the code. The sintaxis of a template is:
+Pools allow you to reuse a fixed number of pre-created GameObjects without creating or destroying them during the game loop, avoiding garbage-collector pressure and keeping the frame rate stable.
+
+A pool is declared in `gameConfiguration.pools` using the pattern `"PoolName": "numberOfElements:GameObjectName"`. The engine will create `numberOfElements` copies of the named GameObject (each named `GameObjectName-0`, `GameObjectName-1`, ...) and will disable them all at startup, moving them off-screen. Children GameObjects and intra-pool references in behaviours are handled automatically by the engine.
+
+Inside a Behaviour you interact with a pool through a `PoolGameObject` reference (injected via the `[PoolItem]` reference type):
+* `pool.getObject(x?, y?)` — takes an object from the pool, enables it, and optionally places it at the given position. Returns the `GameObject`.
+* `pool.putObject(gameObject)` — returns an object to the pool and disables it.
+* `pool.isPoolEmpty` — `true` when all objects are currently active.
+
+A typical use-case is calling `pool.getObject()` when an event fires (new ball, new result...) and `gameObject.forceToEndCircleOfLife()` or `pool.putObject()` when the object is no longer needed.
+
+```json
+"gameConfiguration": {
+    "width": 690,
+    "height": 388,
+    "gravity": -9.81,
+    "pools": {
+        "BallPool":      "20:Ingame-Ball",
+        "ResultBoxPool": "20:Result-Box"
+    }
+},
+```
+
+The pool item GameObject (e.g. `"Ingame-Ball"`) is defined in the scene file exactly like any other GameObject, but because it is listed in `pools` the engine treats it as a template and instantiates it the given number of times. You should never manually list all the cloned objects (like `"Ingame-Ball-0"`, `"Ingame-Ball-1"`, ...) inside `childrenObjects` of another object — the engine handles the mapping automatically.
+
+### 3.1.2 Particle files
+Particle files contain the emitter configuration consumed by Pixi Particles. Each file corresponds to one entry in a `particleList` (the `"config"` field). The format is the standard Pixi Particles JSON format; the best way to create and tweak these files is using the [online Pixi Particles editor](https://pixijs.io/pixi-particles-editor/#pixieDust).
+
+The key fields you will typically adjust are:
+
+| Field | Description |
+|---|---|
+| `alpha.start` / `alpha.end` | Opacity at the start and end of a particle's life |
+| `scale.start` / `scale.end` | Size multiplier at start and end |
+| `color.start` / `color.end` | Tint color (hex) at start and end |
+| `speed.start` / `speed.end` | Emission speed range |
+| `lifetime.min` / `lifetime.max` | Minimum and maximum particle lifetime in seconds |
+| `frequency` | Time between emissions (lower = more particles) |
+| `maxParticles` | Hard cap on the number of simultaneous particles |
+| `spawnType` | Shape of the emission zone: `"point"`, `"rect"`, `"circle"`, etc. |
+| `emitterLifetime` | Total duration of the emitter (`-1` means infinite) |
+
+A minimal example:
+```json
+{
+    "alpha":    { "start": 1, "end": 0.25 },
+    "scale":    { "start": 0.1, "end": 0.1, "minimumScaleMultiplier": 1 },
+    "color":    { "start": "#ffffff", "end": "#ffffff" },
+    "speed":    { "start": 500, "end": 700, "minimumSpeedMultiplier": 1 },
+    "acceleration": { "x": 0, "y": 0 },
+    "startRotation": { "min": 90, "max": 90 },
+    "rotationSpeed": { "min": 0, "max": 120 },
+    "lifetime": { "min": 0.5, "max": 4 },
+    "blendMode": "normal",
+    "frequency": 0.001,
+    "emitterLifetime": -1,
+    "maxParticles": 30,
+    "pos": { "x": 0, "y": 0 },
+    "addAtBack": false,
+    "spawnType": "rect",
+    "spawnRect": { "x": -175, "y": -370, "w": 600, "h": 20 }
+}
+```
+
+Particle config files are registered at game construction time via the `particlesConfigJson` property of `GameProperties`, mapping each file name to its imported JSON data.
+
+### 3.1.3 Template files
+Templates let you generate a repeated set of GameObjects from a single JSON definition, avoiding having to write dozens of nearly identical entries in the scene file. A typical use case is a grid of result boxes, a ring of ball holes, or any repeated layout element.
+
+A template file has three top-level keys:
+
+* `"vars"`. Configuration for the template engine itself plus any custom variables your `GameObjectTemplate` subclass needs. The mandatory engine keys are:
+  * `numberElements`. How many times the template will be instantiated.
+  * `isUseIndexWithoutZeroForTemplate`. If `true`, the `[index]` placeholder starts at 1 instead of 0.
+* `"template-vars"`. Initial default values for any placeholder variables used inside `"template"`. These values can be updated per-iteration by your `GameObjectTemplate` subclass inside `doBeforeBuildIndexTemplate`.
+* `"template"`. The JSON object that will be repeated. Inside it you can use the following placeholders:
+  * `[index:number]` / `[index:string]` — replaced with the iteration index.
+  * `[varName:number]` / `[varName:string]` — replaced with the current value of `templateVars["varName"]`.
+
+```json
+{
+    "vars": {
+        "numberElements": 80,
+        "isUseIndexWithoutZeroForTemplate": true,
+        "posXFirstElement": -143,
+        "posYFirstElement": -87.5,
+        "marginX": 31.5,
+        "marginY": 25,
+        "numberColumns": 10
+    },
+    "template-vars": {
+        "positionX": 0,
+        "positionY": 0
+    },
+    "template": {
+        "Text-Result-Table-[index:number]": {
+            "transform": {
+                "position": {
+                    "x": "[positionX:number]",
+                    "y": "[positionY:number]",
+                    "z": -0.3
+                },
+                "scale": { "x": 1, "y": 1 },
+                "childrenObjects": []
+            },
+            "textComponent": {
+                "textValue": "[index:string]",
+                "fontSize": 14,
+                "fontFamily": "Josefin-Sans-Light",
+                "align": "center",
+                "textBaseline": "center",
+                "opacity": 0.12,
+                "fill": "#ffffff"
+            },
+            "isEnabled": true
+        }
+    }
+}
+```
+
+Note that the extra keys in `"vars"` (`posXFirstElement`, `marginX`, etc.) are injected into the `GameObjectTemplate` subclass by the engine, so you can read them as instance properties inside `doBeforeBuildIndexTemplate`. The `"template-vars"` section provides the initial values of `this.templateVars`, which your code updates before each iteration.
 
 ### 3.2 Typescript code
+
 #### 3.2.1 GameObjectTemplate
+`GameObjectTemplate` is an abstract class that you extend to define the per-iteration logic for a template. The engine injects all fields from the `"vars"` section of the template JSON as instance properties on your subclass, so you can declare them as class members and read them directly.
+
+The only method you must implement is:
+
+```ts
+doBeforeBuildIndexTemplate(index: number, templateVars: TemplateVars): void
+```
+
+This method is called once before each iteration. It receives the current `index` and the `templateVars` dictionary (which maps placeholder names to their current values). You update `templateVars` here to produce the right values for that iteration.
+
+A complete example that computes grid positions:
+```ts
+import { GameObjectTemplate, TemplateVars } from "graphics-engine";
+
+export class TextResultTableTemplate extends GameObjectTemplate {
+    // Injected from "vars" in the template JSON:
+    private posXFirstElement: number;
+    private posYFirstElement: number;
+    private marginX: number;
+    private marginY: number;
+    private numberColumns: number;
+
+    doBeforeBuildIndexTemplate(index: number, templateVars: TemplateVars): void {
+        const row = Math.floor(index / this.numberColumns);
+        const col = Math.floor(index % this.numberColumns);
+        templateVars["positionX"] = this.posXFirstElement + (this.marginX * col);
+        templateVars["positionY"] = this.posYFirstElement + (this.marginY * row);
+    }
+}
+```
+
 #### 3.2.2 Behaviours
+A Behaviour is a TypeScript class that implements the `BehaviourComponent` interface (or extends the `BehaviourComponent` base class). It is the primary place for writing game logic.
+
+The engine calls lifecycle methods on each Behaviour in a defined order:
+1. `onLoad()` — called once when assets are loading. Use it to create `Timer` instances or read from `DataShared`.
+2. `onAwake()` — called once just before the scene starts, with all GameObjects already instantiated. References have been injected at this point.
+3. `onStart()` — called once when the scene starts running, after all `onAwake` calls have finished.
+4. `onEnable()` — called every time the GameObject is enabled (including when a pool object is taken out of the pool).
+5. `onDisable()` — called every time the GameObject is disabled (including when returned to the pool).
+6. `update(deltaTime: number)` — called every frame. `deltaTime` is the time in seconds since the last frame, already normalized so it is machine-independent.
+7. `onCollisionEnter(collidedWith: CollidedWith)` — called on the first frame two physics bodies start overlapping.
+8. `onCollisionStay(collidedWith: CollidedWith)` — called every frame while two bodies remain overlapping.
+9. `onCollisionExit(collidedWith: CollidedWith)` — called when two bodies stop overlapping.
+10. `onEndingCircleOfLife()` — called when `gameObject.forceToEndCircleOfLife()` is invoked. Useful for triggering pool recycling from a behaviour.
+11. `onDestroy()` — called when the scene is destroyed.
+
+All lifecycle methods are optional. Implement only the ones you need.
+
+To access the owning `GameObject` from inside the Behaviour, cast `this` to `BehaviourComponentInterface`:
+```ts
+get _gameObject(): GameObject {
+    return (<BehaviourComponentInterface> this).gameObject!;
+}
+```
+
+A minimal Behaviour example:
+```ts
+import {
+    BehaviourComponent, BehaviourComponentInterface,
+    GameObject, Game, TextComponent
+} from "graphics-engine";
+import { MyDataShared } from "../my-data-shared";
+
+export class ScoreBehaviour implements BehaviourComponent {
+    // Injected via "references" in the scene JSON:
+    scoreText: TextComponent;
+
+    private dataShared: MyDataShared;
+
+    get _gameObject(): GameObject {
+        return (<BehaviourComponentInterface> this).gameObject!;
+    }
+
+    onAwake = () => {
+        this.dataShared = <MyDataShared> Game.instance.dataShared;
+    }
+
+    onStart = () => {
+        this.scoreText.setTextValue("0");
+    }
+
+    update = (deltaTime: number) => {
+        // update score display every frame if needed
+    }
+}
+```
+
+All Behaviour classes must be registered in a `behaviourTypeList` array and passed to the `Game` constructor so the engine can instantiate them by name. The `nameClass` field must exactly match the class name:
+```ts
+export const behaviourTypeList = [
+    { nameClass: 'ScoreBehaviour', classType: ScoreBehaviour },
+    { nameClass: 'MoveBallHorizontal', classType: MoveBallHorizontal },
+    // ...
+];
+```
+
 #### 3.2.3 Timers
+`Timer` is a utility class for triggering a callback after a fixed duration measured in game time (via `deltaTime`, so it is paused when the tab is hidden and machine-independent). Create timers in `onLoad` so they are ready when the scene starts.
+
+```ts
+import { Timer } from "graphics-engine";
+
+// Create a 1.5-second timer:
+const myTimer = new Timer(1.5);
+
+// Start it and provide the callback:
+myTimer.start(() => {
+    console.log("Timer finished!");
+});
+
+// You can pause and resume:
+myTimer.putInPause();
+myTimer.start(callback); // calling start on a paused timer resumes it
+
+// Or stop it immediately (fires the callback right away):
+myTimer.stopNow();
+
+// Check its state:
+myTimer.isStop();   // true when time has elapsed
+myTimer.isPause();  // true when paused
+```
+
+Typical use inside a Behaviour:
+```ts
+private timerToEnd: Timer;
+
+onLoad = () => {
+    this.timerToEnd = new Timer(2.5);
+}
+
+onEnable = () => {
+    this.timerToEnd.start(() => this._gameObject.forceToEndCircleOfLife());
+}
+```
+
 #### 3.2.4 Data Shared
+`DataShared` is a plain class you extend to hold any state that multiple Behaviours need to share. There is one instance per game, accessible from any Behaviour via `Game.instance.dataShared`. Cast it to your specific subclass:
+
+```ts
+import { DataShared } from "graphics-engine";
+
+export class MyDataShared extends DataShared {
+    score: number = 0;
+    round: number = 1;
+    onRoundEnded: () => void;
+}
+```
+
+Inside a Behaviour:
+```ts
+onAwake = () => {
+    const shared = <MyDataShared> Game.instance.dataShared;
+    shared.onRoundEnded = () => this.handleRoundEnd();
+}
+```
+
+The `DataShared` instance is passed to the `Game` constructor as the `dataShared` property of `GameProperties`.
+
 #### 3.2.5 Creating the game
-(fusion of behaviour list, templates, particles, paths,...)
+The entry point of any application using this engine is the `Game` class. A typical bootstrap flow has two phases: **load** (parses JSON, loads assets) and **start** (mounts the canvas in the DOM and begins rendering).
+
+```ts
+import * as SceneData        from "./scenes/my-scene.json";
+import * as TemplateData     from "./scenes/templates/my-template.json";
+import * as ParticleData     from "./scenes/particles/my-particles.json";
+import {
+    Game, Scene, MockNgZone, cloneJSONData
+} from "graphics-engine";
+import { behaviourTypeList } from "./behaviours/behaviour-type-list";
+import { MyDataShared }      from "./my-data-shared";
+import { MyTemplate }        from "./templates/my-template";
+
+const SCENE_NAME    = "my-scene";
+const TEMPLATE_NAME = "my-template";
+
+// Phase 1 — construct and load.
+// This must be called once, before any scene is started.
+const game = new Game(
+    // Array of scene descriptors:
+    [
+        { nameScene: SCENE_NAME, jsonData: SceneData },
+    ],
+    // Array of template descriptors:
+    [
+        {
+            nameTemplate:      TEMPLATE_NAME,
+            gameSceneToApply:  SCENE_NAME,
+            type:              MyTemplate,
+            jsonData:          cloneJSONData(TemplateData),
+        },
+    ],
+    // GameProperties:
+    {
+        imageAsssetPaths:   assetPaths,          // string[] of resolved asset URLs / paths
+        particlesConfigJson: [
+            { nameParticle: "my-particles.json", data: ParticleData },
+        ],
+        languageCode:       "en",
+        ngZone:             new MockNgZone(),    // use Angular NgZone if inside Angular
+        antialiasEnabled:   false,
+        pauseOnTabOrWindowChange: true,
+        debugProperties: {
+            isDebuggerAllowed:    false,
+            isPhysicTraceEnabled: false,
+        },
+        behaviourTypeList,
+        dataShared: new MyDataShared(),
+        // Optional loading callbacks:
+        utilities: {
+            onPercentLoader:    () => console.log(`Loading... ${game.currentLoadingProgressPercent}%`),
+            onLoadingCompleted: () => console.log("All assets loaded."),
+        },
+    }
+);
+
+// Load assets and resolve all scene references:
+const scene: Scene = await game.load(SCENE_NAME);
+
+// Phase 2 — start.
+// Mount the canvas inside a DOM element and begin the game loop:
+const divCanvas = document.getElementById("canvas-container")!;
+await scene.start(divCanvas, { width: 690, height: 388 }, "#000000");
+```
+
+Key `GameProperties` fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `imageAsssetPaths` | `string[]` | All asset URLs resolved at build time. The engine matches image/sound file names against this list. |
+| `particlesConfigJson` | `ParticleConfigJson[]` | Particle emitter config files indexed by name. |
+| `languageCode` | `string` | BCP 47 language code used for font loading and localization utilities. |
+| `ngZone` | `NgZone` | Pass `new MockNgZone()` outside Angular, or the real Angular `NgZone` inside. |
+| `antialiasEnabled` | `boolean` | Enables WebGL anti-aliasing. Disable for pixel-art or performance-critical scenes. |
+| `pauseOnTabOrWindowChange` | `boolean` | Pauses `deltaTime` accumulation when the page is hidden. |
+| `debugProperties` | `DebugProperties` | `isDebuggerAllowed` draws physics collider outlines; `isPhysicTraceEnabled` adds extra physics logging. |
+| `behaviourTypeList` | `BehaviourTypeList[]` | Maps class names to Behaviour constructors. Must include every Behaviour referenced in any scene JSON. |
+| `dataShared` | `DataShared` | Optional shared state object, accessible from all Behaviours via `Game.instance.dataShared`. |
+| `utilities` | `Utilities` | Optional loading progress callbacks (`onPercentLoader`, `onLoadingCompleted`). |
+
+To destroy the game (e.g. when unmounting a component) call:
+```ts
+await Game.instance.destroy();
+```
+
+To reset the game with new data without a full page reload:
+```ts
+await game.reset(newSceneData, newTemplateData, newGameProperties);
+```
 
 ## 4. Engine documentation
