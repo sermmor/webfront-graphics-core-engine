@@ -5,6 +5,7 @@ const fs = require('fs-extra');
 const { glob } = require('glob');
 const mime = require('mime-types');
 const { spawn, exec } = require('child_process');
+const os = require('os');
 
 const app = express();
 const PORT = 3001;
@@ -18,26 +19,48 @@ let playProcess = null;
 // ── Health ─────────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
-// ── Native folder picker ────────────────────────────────────────────────────
-app.get('/api/folder-picker', (_req, res) => {
-  const ps = `
-Add-Type -AssemblyName System.Windows.Forms
-$d = New-Object System.Windows.Forms.FolderBrowserDialog
-$d.Description = 'Select project folder'
-$d.ShowNewFolderButton = $false
-$d.RootFolder = 'MyComputer'
-if ($d.ShowDialog() -eq 'OK') { Write-Output $d.SelectedPath }
-`.trim();
+// ── File-system browser (used by the folder-picker modal) ──────────────────
 
-  exec(`powershell -NoProfile -Command "${ps.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`,
-    { timeout: 60000 },
-    (err, stdout, stderr) => {
-      if (err) return res.status(500).json({ error: stderr || err.message });
-      const selected = stdout.trim();
-      if (!selected) return res.json({ cancelled: true });
-      res.json({ path: selected });
-    }
-  );
+// Returns the OS root folders to show as entry points
+app.get('/api/fs/roots', (_req, res) => {
+  if (process.platform === 'win32') {
+    exec('wmic logicaldisk get name', (err, stdout) => {
+      let drives = [];
+      if (!err) {
+        drives = stdout
+          .split(/\r?\n/)
+          .map(l => l.trim())
+          .filter(l => /^[A-Z]:$/i.test(l))
+          .map(d => ({ name: d + '\\', path: d + '\\' }));
+      }
+      if (!drives.length) drives = [{ name: 'C:\\', path: 'C:\\' }];
+      res.json({ roots: drives });
+    });
+  } else {
+    // Mac / Linux: start from home and filesystem root
+    const home = os.homedir();
+    res.json({ roots: [{ name: '~ (home)', path: home }, { name: '/', path: '/' }] });
+  }
+});
+
+// Lists immediate sub-folders of a given path
+app.get('/api/fs/list', async (req, res) => {
+  const { path: dirPath } = req.query;
+  if (!dirPath) return res.status(400).json({ error: 'path required' });
+  try {
+    const normalized = path.normalize(String(dirPath));
+    const entries = await fs.readdir(normalized, { withFileTypes: true });
+    const folders = entries
+      .filter(e => e.isDirectory() && !e.name.startsWith('.'))
+      .map(e => ({ name: e.name, path: path.join(normalized, e.name) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    // parent: null when already at a drive/fs root
+    const parent = path.dirname(normalized);
+    const isRoot = parent === normalized;
+    res.json({ folders, parent: isRoot ? null : parent });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Project ────────────────────────────────────────────────────────────────
