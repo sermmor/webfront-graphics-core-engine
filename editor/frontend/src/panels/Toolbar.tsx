@@ -1,12 +1,6 @@
-import { useState, KeyboardEvent } from 'react';
+import { useState } from 'react';
 import { useEditorStore } from '../store/editorStore';
-
-async function pickFolder(): Promise<string | null> {
-  const res = await fetch('/api/folder-picker');
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.cancelled ? null : (data.path ?? null);
-}
+import FolderPickerModal from './FolderPickerModal';
 
 export default function Toolbar() {
   const {
@@ -14,79 +8,70 @@ export default function Toolbar() {
     openProject, openScene, saveScene, startPlay, stopPlay,
   } = useEditorStore();
 
-  const [pathInput, setPathInput] = useState(projectPath);
-  const [picking, setPicking] = useState(false);
-
-  const handleOpen = async () => {
-    setPicking(true);
-    try {
-      const picked = await pickFolder();
-      if (picked) {
-        setPathInput(picked);
-        openProject(picked);
-      } else if (pathInput.trim()) {
-        openProject(pathInput.trim());
-      }
-    } finally {
-      setPicking(false);
-    }
-  };
-
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && pathInput.trim()) openProject(pathInput.trim());
-  };
-
+  const [pickerOpen, setPickerOpen] = useState(false);
   const isPlaying = playMode !== 'stopped';
 
+  const handleAccept = (path: string) => {
+    openProject(path);
+  };
+
   return (
-    <div className="toolbar">
-      <span className="toolbar-title">🎮 Engine Editor</span>
-      <div className="toolbar-sep" />
+    <>
+      <div className="toolbar">
+        <span className="toolbar-title">🎮 Engine Editor</span>
+        <div className="toolbar-sep" />
 
-      <input
-        value={pathInput}
-        onChange={e => setPathInput(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="Project folder path…"
-        title="Absolute path to the project folder"
-        style={{ minWidth: 280 }}
+        {/* Show current project path (read-only once selected) */}
+        {projectPath && (
+          <span style={{
+            fontSize: 10, color: 'var(--text-dim)',
+            maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            fontFamily: 'monospace',
+          }} title={projectPath}>
+            {projectPath}
+          </span>
+        )}
+
+        <button className="btn btn-primary" onClick={() => setPickerOpen(true)}>
+          📂 {projectPath ? 'Cambiar proyecto' : 'Abrir proyecto'}
+        </button>
+
+        {scenes.length > 0 && (
+          <>
+            <div className="toolbar-sep" />
+            <select value={currentScenePath} onChange={e => openScene(e.target.value)}>
+              <option value="">— seleccionar escena —</option>
+              {scenes.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </>
+        )}
+
+        {currentScenePath && (
+          <>
+            <div className="toolbar-sep" />
+            <button
+              className="btn btn-save"
+              onClick={saveScene}
+              disabled={!isDirty}
+              title="Guardar escena (Ctrl+S)"
+            >
+              💾 Guardar{isDirty && <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', marginLeft: 4, verticalAlign: 'middle' }} />}
+            </button>
+            <div className="toolbar-sep" />
+            {!isPlaying ? (
+              <button className="btn btn-play" onClick={startPlay}>▶ Play</button>
+            ) : (
+              <button className="btn btn-stop" onClick={stopPlay}>■ Stop</button>
+            )}
+          </>
+        )}
+      </div>
+
+      <FolderPickerModal
+        isOpen={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onAccept={handleAccept}
       />
-      <button className="btn btn-primary" onClick={handleOpen} disabled={picking}>
-        {picking ? '…' : '📂 Open'}
-      </button>
-
-      {scenes.length > 0 && (
-        <>
-          <div className="toolbar-sep" />
-          <select
-            value={currentScenePath}
-            onChange={e => openScene(e.target.value)}
-          >
-            <option value="">— select scene —</option>
-            {scenes.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </>
-      )}
-
-      {currentScenePath && (
-        <>
-          <div className="toolbar-sep" />
-          <button
-            className="btn btn-save"
-            onClick={saveScene}
-            disabled={!isDirty}
-            title="Save scene (Ctrl+S)"
-          >
-            💾 Save{isDirty && <span className="dirty-dot" style={{ display: 'inline-block', marginLeft: 4 }} />}
-          </button>
-          <div className="toolbar-sep" />
-          {!isPlaying ? (
-            <button className="btn btn-play" onClick={startPlay} title="Play">▶ Play</button>
-          ) : (
-            <button className="btn btn-stop" onClick={stopPlay} title="Stop">■ Stop</button>
-          )}
-        </>
-      )}
-    </div>
+    </>
   );
 }
